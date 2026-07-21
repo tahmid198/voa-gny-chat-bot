@@ -1,12 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { DocumentsResponse, HealthResponse } from "@/lib/types";
 
 export function StatusBar() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [reindexing, setReindexing] = useState(false);
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on a click outside the panel, or on Escape.
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
 
   const load = useCallback(async () => {
     try {
@@ -56,10 +81,12 @@ export function StatusBar() {
         : "bg-brand-red";
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm text-[#5f6368] transition hover:bg-[#f1f3f4] dark:text-[#9aa0a6] dark:hover:bg-[#2d2e30]"
       >
         <span className={`h-2 w-2 rounded-full ${dotColor}`} />
