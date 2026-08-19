@@ -3,6 +3,8 @@
 export interface Source {
   n: number;
   file: string;
+  /** Chunk id within the source document, as stored in Qdrant. */
+  chunk?: string;
   snippet: string;
   score: number;
 }
@@ -18,14 +20,12 @@ export interface Turn {
 
 export interface IndexedFileInfo {
   file: string;
-  sizeBytes: number;
-  modifiedAt: string;
   chunkCount: number;
   charCount: number;
 }
 
 export interface DocumentsResponse {
-  docsDir: string;
+  collection: string;
   builtAt: string;
   fileCount: number;
   chunkCount: number;
@@ -34,7 +34,8 @@ export interface DocumentsResponse {
 }
 
 export interface HealthResponse {
-  jetson: {
+  /** vLLM, serving the generation model. */
+  llm: {
     online: boolean;
     models: string[];
     modelAvailable: boolean;
@@ -42,12 +43,21 @@ export interface HealthResponse {
     host: string;
     model: string;
   };
+  /** Qdrant, holding the embedded document chunks. */
+  vectorStore: {
+    host: string;
+    collection: string;
+    online: boolean;
+    embeddingModel: string;
+  };
   documents: {
-    docsDir: string;
+    collection: string;
     fileCount: number;
     chunkCount: number;
     errors: string[];
   };
+  /** Set by the frontend when the maud-ai service itself is unreachable. */
+  serviceError?: string;
 }
 
 /** Line protocol emitted by /api/chat (newline-delimited JSON). */

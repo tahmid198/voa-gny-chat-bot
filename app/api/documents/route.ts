@@ -1,34 +1,40 @@
-import { NextRequest } from "next/server";
-import { getIndex, invalidateIndex } from "@/lib/store";
+import { describeMaudError, getJson, postJson } from "@/lib/maud";
+import type { DocumentsResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** List everything currently indexed. */
-export async function GET() {
-  const index = await getIndex();
-
-  return Response.json({
-    docsDir: index.docsDir,
-    builtAt: index.builtAt,
-    fileCount: index.files.length,
-    chunkCount: index.chunks.length,
-    files: index.files,
-    errors: index.errors,
-  });
+function failure(error: unknown): DocumentsResponse {
+  return {
+    collection: "—",
+    builtAt: new Date().toISOString(),
+    fileCount: 0,
+    chunkCount: 0,
+    files: [],
+    errors: [describeMaudError(error)],
+  };
 }
 
-/** Re-scan the folder after files have been added or changed. */
-export async function POST(_request: NextRequest) {
-  invalidateIndex();
-  const index = await getIndex(true);
+/** Everything currently ingested into the Qdrant collection. */
+export async function GET() {
+  try {
+    return Response.json(await getJson<DocumentsResponse>("/documents"));
+  } catch (error) {
+    return Response.json(failure(error));
+  }
+}
 
-  return Response.json({
-    docsDir: index.docsDir,
-    builtAt: index.builtAt,
-    fileCount: index.files.length,
-    chunkCount: index.chunks.length,
-    files: index.files,
-    errors: index.errors,
-  });
+/**
+ * Re-read the collection. This does not re-ingest — ingestion is a separate
+ * step on the maud-ai host (`python ingest_documents.py`); this just refreshes
+ * the cached inventory after documents have been added there.
+ */
+export async function POST() {
+  try {
+    return Response.json(
+      await postJson<DocumentsResponse>("/documents/refresh", {}, 60_000),
+    );
+  } catch (error) {
+    return Response.json(failure(error));
+  }
 }

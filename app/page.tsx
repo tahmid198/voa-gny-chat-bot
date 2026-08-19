@@ -10,8 +10,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import type { ChatStreamEvent, Turn } from "@/lib/types";
 
 const EXAMPLES = [
-  "What's in the employee handbook about time off?",
-  "Summarize the latest quarterly report",
+  "How much PTO do I get after 10 years?",
+  "What is the policy on bereavement leave?",
   "Which documents mention safety training?",
 ];
 
@@ -191,7 +191,7 @@ export default function Home() {
           </div>
 
           <p className="mt-10 text-[13px] text-[#9aa0a6]">
-            Answers come from your documents, generated locally on the Jetson.
+            Answers come from VOA-GNY documents, retrieved and generated on-premise.
           </p>
         </main>
       ) : (

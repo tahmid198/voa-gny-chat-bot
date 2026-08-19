@@ -1,47 +1,37 @@
 import { config } from "@/lib/config";
-import { describeOllamaError, listModels } from "@/lib/ollama";
-import { getIndex } from "@/lib/store";
+import { describeMaudError, getJson } from "@/lib/maud";
+import type { HealthResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Reports whether the Jetson is reachable and whether documents are indexed. */
+/** Reports whether vLLM, Qdrant and the maud-ai service itself are healthy. */
 export async function GET() {
-  const index = await getIndex();
-
-  let jetson: {
-    online: boolean;
-    models: string[];
-    modelAvailable: boolean;
-    error?: string;
-  };
-
   try {
-    const models = await listModels();
-    jetson = {
-      online: true,
-      models,
-      // Ollama reports "llama3.2:3b"; tolerate the user omitting the tag.
-      modelAvailable: models.some(
-        (m) => m === config.ollamaModel || m.split(":")[0] === config.ollamaModel,
-      ),
-    };
+    return Response.json(await getJson<HealthResponse>("/health"));
   } catch (error) {
-    jetson = {
-      online: false,
-      models: [],
-      modelAvailable: false,
-      error: describeOllamaError(error),
-    };
-  }
+    const message = describeMaudError(error);
 
-  return Response.json({
-    jetson: { ...jetson, host: config.ollamaHost, model: config.ollamaModel },
-    documents: {
-      docsDir: index.docsDir,
-      fileCount: index.files.length,
-      chunkCount: index.chunks.length,
-      errors: index.errors,
-    },
-  });
+    // Shape-compatible fallback so the status panel still renders.
+    const offline: HealthResponse = {
+      llm: {
+        online: false,
+        models: [],
+        modelAvailable: false,
+        error: message,
+        host: "—",
+        model: "—",
+      },
+      vectorStore: {
+        host: "—",
+        collection: "—",
+        online: false,
+        embeddingModel: "—",
+      },
+      documents: { collection: "—", fileCount: 0, chunkCount: 0, errors: [] },
+      serviceError: `${config.maudApiUrl} — ${message}`,
+    };
+
+    return Response.json(offline);
+  }
 }

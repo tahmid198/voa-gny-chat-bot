@@ -1,112 +1,132 @@
 # voa-gny-chat-bot
 
-A Google-style search page for your company documents. Ask a question in plain
-English; the backend finds the relevant passages in your files and a model
-running on the Jetson Nano writes the answer, with citations back to the source
-documents.
+A Google-style search page for VOA-Greater New York's HR documents. Ask a
+question in plain English; the answer comes back with citations to the source
+document, streamed token by token.
 
-Nothing leaves your network — the documents stay on the web server and the model
-runs on the Jetson.
+Nothing leaves the network. This app is the frontend; retrieval and generation
+both happen in the **maud-ai** service on the Ubuntu host (`10.10.1.165`).
 
-## How it works
+## Architecture
 
-1. On first request the server walks `DOCS_DIR`, extracts text from every
-   supported file, and splits it into overlapping chunks (cached in memory).
-2. Each question is scored against those chunks with BM25 keyword ranking.
-3. The top chunks are sent to Ollama on the Jetson as context, with instructions
-   to answer only from that context and cite sources.
-4. The answer streams back token by token.
+```
+browser
+  │
+  ▼
+Next.js app (this repo)          ← UI + thin proxy, no AI dependencies
+  │  POST /api/chat  (NDJSON)
+  ▼
+maud-ai service  :8100           ← backend/ in this repo, deployed to /opt/maud-ai
+  ├── BAAI/bge-base-en-v1.5      ← embeds the question (sentence-transformers)
+  ├── Qdrant       :6333         ← "hr-documents" collection, vector search
+  └── vLLM         :8000         ← google/gemma-3-1b-it, OpenAI-compatible API
+```
 
-Supported file types: `.txt` `.md` `.log` `.json` `.csv` `.tsv` `.pdf` `.docx`
-`.xlsx` `.xls` `.xlsm`. Subfolders are indexed too.
+The embedding model is the reason for the middle tier: turning a question into
+a query vector requires `sentence-transformers`, which only exists in Python, so
+the frontend cannot talk to Qdrant directly.
+
+### How a question is answered
+
+1. The question is expanded into several search queries. Short follow-ups
+   ("what about after 10 years?") are rewritten using the previous turn, and PTO
+   questions get extra queries aimed at each row of the accrual table.
+2. Each query is embedded and searched against Qdrant; results are deduplicated
+   by `(file, chunkID)`.
+3. PTO questions get a lexical bonus on top of the vector score, because the
+   accrual policy is a table and pure vector similarity ranks it below the
+   surrounding prose.
+4. Top chunks fill a character-budgeted context block, numbered for citations.
+5. If the PTO accrual table parsed cleanly, the answer is generated directly from
+   the parsed rows — a 1B model reading a table is where hallucinations happen.
+   Otherwise the context goes to vLLM and the answer streams back.
 
 ## Setup
 
+### Backend (on the maud-ai host)
+
+See [backend/README.md](backend/README.md). In short:
+
+```bash
+ssh skunk@10.10.1.165
+cd /opt/maud-ai
+venv/bin/pip install -r backend/requirements.txt
+sudo cp backend/maud-ai.service /etc/systemd/system/
+sudo systemctl enable --now maud-ai
+```
+
+### Frontend
+
 ```bash
 npm install
-cp .env.example .env.local   # already done if .env.local exists
+cp .env.example .env.local    # point MAUD_API_URL at the maud-ai host
 npm run dev
 ```
 
-Open http://localhost:3000.
-
-Drop your files into the `documents/` folder (or point `DOCS_DIR` somewhere
-else). Use the status menu in the top right to re-index after adding files.
+Open http://localhost:3000. The status dot in the top right turns green once
+vLLM, Qdrant and the maud-ai service are all reachable.
 
 ## Configuration
 
 Everything tunable lives in `.env.local`:
 
-| Variable             | Default                      | Purpose                                      |
-| -------------------- | ---------------------------- | -------------------------------------------- |
-| `OLLAMA_HOST`        | `http://192.168.3.153:11434` | Where the Jetson's Ollama API lives           |
-| `OLLAMA_MODEL`       | `llama3.2:3b`                | Model to run — must be pulled on the Jetson  |
-| `OLLAMA_TIMEOUT_MS`  | `180000`                     | How long to wait for a response               |
-| `JETSON_IP`          | `192.168.3.153`              | Used to build the default host and in errors  |
-| `JETSON_SSH_USER`    | `admin`                      | Reference only; the app doesn't SSH           |
-| `DOCS_DIR`           | `./documents`                | Folder to index                               |
-| `MAX_FILE_SIZE_MB`   | `25`                         | Skip files larger than this                   |
-| `MAX_CONTEXT_CHUNKS` | `8`                          | Passages sent to the model per question       |
+| Variable                 | Default                  | Purpose                                     |
+| ------------------------ | ------------------------ | ------------------------------------------- |
+| `MAUD_API_URL`           | `http://10.10.1.165:8100` | Base URL of the maud-ai service            |
+| `MAUD_HOST`              | `10.10.1.165`            | Used to build the default URL and in errors |
+| `MAUD_CHAT_TIMEOUT_MS`   | `300000`                 | Wait for an answer (cold vLLM loads slowly) |
+| `MAUD_STATUS_TIMEOUT_MS` | `10000`                  | Wait for health / document-list calls       |
 
-Changing the IP or model is a `.env.local` edit plus a restart — no code changes.
+Model, embedding model, collection name and retrieval budgets are all backend
+settings — see `backend/.env.example`.
 
-## Jetson Nano setup
-
-SSH in as `admin@192.168.3.153`, then:
+If the maud-ai service isn't exposed on the network, tunnel it instead:
 
 ```bash
-# Install Ollama if it isn't there yet
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Pull a model small enough for the Nano's RAM
-ollama pull llama3.2:3b
+ssh -N -L 8100:localhost:8100 skunk@10.10.1.165
+# then set MAUD_API_URL=http://localhost:8100
 ```
 
-By default Ollama only listens on `127.0.0.1`, so this app can't reach it across
-the network. Bind it to all interfaces:
+## Adding documents
+
+Ingestion happens on the maud-ai host, not through this app:
 
 ```bash
-sudo systemctl edit ollama
+ssh skunk@10.10.1.165
+cd /opt/maud-ai
+cp <your files> documents/
+venv/bin/python ingest_documents.py
 ```
 
-Add:
-
-```
-[Service]
-Environment="OLLAMA_HOST=0.0.0.0:11434"
-```
-
-Then:
-
-```bash
-sudo systemctl restart ollama
-```
-
-Verify from the machine running this app:
-
-```bash
-curl http://192.168.3.153:11434/api/tags
-```
-
-The status dot in the app's top-right corner turns green once the Jetson is
-reachable and the configured model is present.
+Then click **Refresh document list** in the status panel to pick up the change.
 
 ## API
 
 | Route            | Method | Purpose                                                  |
 | ---------------- | ------ | -------------------------------------------------------- |
 | `/api/chat`      | POST   | `{ question, history? }` → newline-delimited JSON stream |
-| `/api/documents` | GET    | What's currently indexed                                  |
-| `/api/documents` | POST   | Force a re-index                                          |
-| `/api/health`    | GET    | Jetson reachability, available models, index stats        |
+| `/api/documents` | GET    | What's currently in the Qdrant collection                |
+| `/api/documents` | POST   | Refresh the cached document inventory                    |
+| `/api/health`    | GET    | vLLM + Qdrant reachability, model, collection stats      |
+
+`/api/chat` emits one JSON object per line:
+
+```json
+{"type": "sources", "sources": [{"n": 1, "file": "handbook.pdf", "snippet": "…", "score": 0.62}]}
+{"type": "delta", "text": "According to the "}
+{"type": "done"}
+```
+
+`{"type": "error", "message": "…"}` replaces the answer when something upstream
+fails, so connection problems render in the UI instead of surfacing as a broken
+fetch.
 
 ## Notes
 
-- The index is held in memory and built lazily. Restarting the server or hitting
-  the re-index button picks up file changes.
-- Retrieval is keyword-based (BM25) — fast, no embedding model needed, and no
-  extra load on the Jetson. If you later want semantic matching, `lib/search.ts`
-  is the only file that needs to change.
-- Answers are grounded in retrieved passages, but small models still make
-  mistakes. The citations are there so anything important can be checked against
-  the source.
+- Answers are grounded in retrieved passages, but a 1B model still makes
+  mistakes. The citations exist so anything important can be checked against the
+  source document.
+- PTO answers bypass the model entirely when the accrual table parses. If the
+  handbook's wording changes, update `TIER_PATTERNS` in
+  `backend/maud_service/pto.py` — an unparseable table falls through to the model
+  rather than producing a wrong number.
