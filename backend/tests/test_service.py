@@ -382,3 +382,12 @@ def test_short_chunks_are_returned_whole():
     assert retrieval.make_snippet("A short policy line.", {"policy"}) == (
         "A short policy line."
     )
+
+
+def test_health_reports_the_service_version(client, prose_points):
+    from maud_service import __version__
+
+    FakeQdrantClient.points = prose_points
+    body = client.get("/health").json()
+
+    assert body["service"]["version"] == __version__

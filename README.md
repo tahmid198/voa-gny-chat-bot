@@ -43,7 +43,7 @@ the frontend cannot talk to Qdrant directly.
 
 ## Running it
 
-Version 1.0.0 — see [RELEASE_NOTES.md](RELEASE_NOTES.md).
+Version 1.1.0 — see [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 Both halves can run on the maud-ai host, so the assistant is reachable on the
 LAN with nothing installed on client machines. That is what `deploy/install.sh`

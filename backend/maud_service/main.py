@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 
-from . import config, llm, pto, retrieval
+from . import __version__, config, llm, pto, retrieval
 
 logger = logging.getLogger("maud_service")
 
@@ -50,7 +50,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="maud-ai", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="maud-ai", version=__version__, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -199,6 +199,7 @@ async def health() -> dict[str, Any]:
         }
 
     return {
+        "service": {"version": __version__},
         "llm": {
             **llm_status,
             "host": config.VLLM_BASE_URL,

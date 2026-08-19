@@ -34,6 +34,8 @@ export interface DocumentsResponse {
 }
 
 export interface HealthResponse {
+  /** Version of the maud-ai service answering this call. */
+  service?: { version: string };
   /** vLLM, serving the generation model. */
   llm: {
     online: boolean;

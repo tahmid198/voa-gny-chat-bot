@@ -176,6 +176,7 @@ export function StatusBar() {
 
           <p className="mt-3 break-all text-[12px] text-[#9aa0a6]">
             {health?.llm.host ?? "—"} · {health?.vectorStore.host ?? "—"}
+            {health?.service?.version ? ` · v${health.service.version}` : ""}
           </p>
 
           <button

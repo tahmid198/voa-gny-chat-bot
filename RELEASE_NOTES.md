@@ -1,5 +1,63 @@
 # Release notes
 
+## 1.1.0 — 2026-08-19
+
+Deployment. Both halves now run on the maud-ai host under systemd, so the
+assistant is reachable on the LAN at **http://10.10.1.165:3000** with nothing
+installed on client machines — no Node, no clone, no branch checkout.
+
+1.0.0 required each user to build and run the frontend on their own machine,
+which put a development toolchain between staff and an HR question. This
+release removes that.
+
+### Added
+
+- `deploy/install.sh` — installs and starts the whole stack on a host that
+  already runs vLLM and Qdrant. It checks both are responding, installs the
+  backend and its Python dependencies into `/opt/maud-ai`, builds the frontend
+  into `/opt/voa-gny-chat-bot`, installs both systemd units, and waits for each
+  to answer before printing the URL. Run it as a normal user; it calls `sudo`
+  where it needs to.
+- `deploy/voa-gny-frontend.service` — runs the Next.js production server on
+  port 3000, bound to all interfaces and pointed at the backend over loopback.
+  It invokes `next` directly rather than through `npm`, so systemd supervises
+  the server itself instead of a wrapper that forwards signals.
+- Node.js 20 is installed only when the system Node is older than 18.18, so
+  Ubuntu 24.04's 18.19 is left alone.
+
+### Changed
+
+- Re-running `deploy/install.sh` is the update path: it pulls, rebuilds and
+  restarts both services. `BRANCH`, `APP_DIR`, `MAUD_DIR`, `SERVICE_USER`,
+  `FRONTEND_PORT` and `BACKEND_PORT` override the defaults.
+- The service reports its own package version at `/health` rather than a
+  hardcoded string.
+- README leads with the single-host install; the per-machine frontend setup is
+  kept as the alternative.
+
+### Removed
+
+- The `serverExternalPackages` entry for `unpdf`, `mammoth` and `xlsx`. Those
+  packages were dropped in 1.0.0 when parsing moved to the backend, leaving the
+  setting with nothing to exclude.
+
+### Notes
+
+- 1.0.0 was never deployed as a running version — it was verified by hand
+  against the live stack, then this release packaged that same setup. Nothing
+  in the retrieval or answering path changed.
+- The 2048-token context window remains the main quality constraint. See
+  **Known limitations** under 1.0.0.
+
+### Verified against
+
+The production server run exactly as the systemd unit invokes it
+(`node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000`), answering
+`/api/health` and a PTO question through the backend. The installer's Node
+version gate and systemd unit rewriting were tested directly; the script has
+not yet been run end to end against a host, since it needs sudo and a real
+`/opt/maud-ai` venv.
+
 ## 1.0.0 — 2026-08-19
 
 First release that answers questions from the real HR corpus. The app now runs
@@ -34,10 +92,6 @@ that does the job it exists for rather than a small increment on the old one.
   name and chunk counts, and distinguishes "service offline" from "model server
   offline" from "vector store offline".
 - Source cards show the chunk id alongside the file name.
-- `deploy/install.sh` and `deploy/voa-gny-frontend.service` — single-host
-  deployment. Both halves run on the maud-ai box under systemd, so the
-  assistant is reachable at `http://10.10.1.165:3000` with nothing installed on
-  client machines. Re-running the script is also the update path.
 
 ### Changed
 
@@ -53,9 +107,8 @@ that does the job it exists for rather than a small increment on the old one.
 
 - `lib/store.ts`, `lib/search.ts`, `lib/extract.ts`, `lib/ollama.ts` — the local
   index, BM25 ranker, document parsers and Ollama client. All superseded.
-- `mammoth`, `unpdf` and `xlsx` dependencies, and the
-  `serverExternalPackages` entry that kept them out of the bundle. Document
-  parsing belongs to `ingest_documents.py`.
+- `mammoth`, `unpdf` and `xlsx` dependencies. Document parsing belongs to
+  `ingest_documents.py`.
 - The Jetson Nano and Ollama are no longer part of the system.
 
 ### Fixed
