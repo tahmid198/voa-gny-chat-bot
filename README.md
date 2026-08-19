@@ -63,7 +63,7 @@ Run it as your normal user, not root — it calls `sudo` where it needs to. It:
 1. checks vLLM and Qdrant are responding, warning rather than failing if not
 2. installs the backend into `/opt/maud-ai` and its Python dependencies
 3. installs Node.js 20 if the system Node is older than 18.18
-4. builds the frontend in `/opt/voa-gny-chat-bot`, pointed at `localhost:8100`
+4. builds the frontend in `/opt/maud-ai/web`, pointed at `localhost:8100`
 5. installs and starts both systemd services
 6. waits for each to answer, then prints the URL
 
@@ -84,6 +84,39 @@ If `ufw` is active, open the port so other machines can reach it:
 ```bash
 sudo ufw allow from 10.10.1.0/24 to any port 3000 proto tcp
 ```
+
+### Layout
+
+Everything lives under `/opt/maud-ai`, alongside the existing venv and scripts:
+
+```
+/opt/maud-ai/
+├── venv/                  existing — shared by the CLI and the service
+├── documents/             existing — source files for ingest_documents.py
+├── rag_chat.py            existing — the interactive CLI, unchanged
+├── ingest_documents.py    existing — ingestion, unchanged
+├── maud_service/  →  web/backend/maud_service   (symlink)
+└── web/                   this repo, built
+```
+
+`maud_service/` is a link into the checkout rather than a copy, so `git pull`
+in `web/` updates the backend too and there is only one copy of the code.
+
+### The CLI and the service
+
+`rag_chat.py` is untouched and still works for terminal use:
+
+```bash
+cd /opt/maud-ai
+source venv/bin/activate
+python3 rag_chat.py
+```
+
+The web app does **not** run it. The `maud-ai` service runs
+`venv/bin/uvicorn maud_service.main:app` instead — the same retrieval and PTO
+logic, reachable over HTTP. It calls the venv's binary by absolute path, which
+is why systemd needs no `activate` step: activating only puts `venv/bin` on
+`PATH`.
 
 ### Services
 

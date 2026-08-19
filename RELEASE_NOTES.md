@@ -14,16 +14,19 @@ release removes that.
 
 - `deploy/install.sh` — installs and starts the whole stack on a host that
   already runs vLLM and Qdrant. It checks both are responding, installs the
-  backend and its Python dependencies into `/opt/maud-ai`, builds the frontend
-  into `/opt/voa-gny-chat-bot`, installs both systemd units, and waits for each
-  to answer before printing the URL. Run it as a normal user; it calls `sudo`
-  where it needs to.
+  backend's Python dependencies, builds the frontend into `/opt/maud-ai/web`,
+  installs both systemd units, and waits for each to answer before printing the
+  URL. Run it as a normal user; it calls `sudo` where it needs to.
 - `deploy/voa-gny-frontend.service` — runs the Next.js production server on
   port 3000, bound to all interfaces and pointed at the backend over loopback.
   It invokes `next` directly rather than through `npm`, so systemd supervises
   the server itself instead of a wrapper that forwards signals.
 - Node.js 20 is installed only when the system Node is older than 18.18, so
   Ubuntu 24.04's 18.19 is left alone.
+- Everything is installed under `/opt/maud-ai`, next to the existing venv,
+  `documents/` and `rag_chat.py`. `maud_service/` is a symlink into
+  `/opt/maud-ai/web/backend/`, so `git pull` updates the backend and there is
+  one copy of the code rather than two.
 
 ### Changed
 
@@ -43,6 +46,12 @@ release removes that.
 
 ### Notes
 
+- `rag_chat.py` is untouched and still runs from the terminal. The service is a
+  second entry point to the same logic, not a replacement — nothing invokes the
+  CLI.
+- Because the checkout now lives under `/opt/maud-ai`, anything that scans that
+  directory wholesale would reach `web/node_modules`. `ingest_documents.py`
+  should read `documents/` only; the installer warns if it cannot confirm that.
 - 1.0.0 was never deployed as a running version — it was verified by hand
   against the live stack, then this release packaged that same setup. Nothing
   in the retrieval or answering path changed.
