@@ -1,0 +1,29 @@
+# VOA-GNY HR assistant — Next.js frontend.
+#
+# Installed by deploy/install.sh. To install by hand:
+#   sudo cp deploy/voa-gny-frontend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now voa-gny-frontend
+[Unit]
+Description=VOA-GNY HR assistant frontend (Next.js)
+Documentation=https://github.com/tahmid198/voa-gny-chat-bot
+# Ordering only — the frontend starts fine without the backend and reports it
+# as offline in the status panel, so this is not a hard dependency.
+After=network-online.target maud-ai.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=skunk
+WorkingDirectory=/opt/voa-gny-chat-bot
+Environment="NODE_ENV=production"
+# Both services run on this host, so the backend is reachable on loopback.
+Environment="MAUD_API_URL=http://localhost:8100"
+# Invoke next directly rather than through npm: systemd then supervises the
+# server process itself instead of an npm wrapper that forwards signals.
+ExecStart=/usr/bin/node /opt/voa-gny-chat-bot/node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

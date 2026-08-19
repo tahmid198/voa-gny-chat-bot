@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // These parse documents on the server only; keep them out of the bundle.
-  serverExternalPackages: ["unpdf", "mammoth", "xlsx"],
+  // The app is a frontend and a proxy; document parsing happens in the
+  // maud-ai service, so there are no server-only packages to exclude.
 };
 
 export default nextConfig;

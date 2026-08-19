@@ -45,6 +45,65 @@ the frontend cannot talk to Qdrant directly.
 
 Version 1.0.0 — see [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
+Both halves can run on the maud-ai host, so the assistant is reachable on the
+LAN with nothing installed on client machines. That is what `deploy/install.sh`
+sets up, and it is the recommended path.
+
+### Quick install — everything on one host
+
+```bash
+ssh skunk@10.10.1.165
+git clone https://github.com/tahmid198/voa-gny-chat-bot ~/voa-gny-chat-bot
+cd ~/voa-gny-chat-bot
+./deploy/install.sh
+```
+
+Run it as your normal user, not root — it calls `sudo` where it needs to. It:
+
+1. checks vLLM and Qdrant are responding, warning rather than failing if not
+2. installs the backend into `/opt/maud-ai` and its Python dependencies
+3. installs Node.js 20 if the system Node is older than 18.18
+4. builds the frontend in `/opt/voa-gny-chat-bot`, pointed at `localhost:8100`
+5. installs and starts both systemd services
+6. waits for each to answer, then prints the URL
+
+Then open **http://10.10.1.165:3000** from any machine on the network.
+
+Re-running it pulls the latest code, rebuilds and restarts — that is the update
+path too. To install a branch other than `main`:
+
+```bash
+BRANCH=claude/maud-ai-rag-chat-g6xn1t ./deploy/install.sh
+```
+
+`APP_DIR`, `MAUD_DIR`, `SERVICE_USER`, `FRONTEND_PORT` and `BACKEND_PORT` can be
+overridden the same way.
+
+If `ufw` is active, open the port so other machines can reach it:
+
+```bash
+sudo ufw allow from 10.10.1.0/24 to any port 3000 proto tcp
+```
+
+### Services
+
+| Unit                  | Port   | What it runs                        |
+| --------------------- | ------ | ----------------------------------- |
+| `maud-ai`             | `8100` | FastAPI: embeddings, Qdrant, vLLM   |
+| `voa-gny-frontend`    | `3000` | Next.js production server           |
+
+```bash
+sudo systemctl restart maud-ai voa-gny-frontend
+journalctl -u maud-ai -f
+journalctl -u voa-gny-frontend -f
+```
+
+---
+
+The rest of this section is the same work done by hand — useful for
+understanding what the script does, or for running the frontend on your own
+machine instead of the host.
+
 ### Prerequisites
 
 These must already be running on the maud-ai host. This app starts neither.

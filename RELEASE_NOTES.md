@@ -34,6 +34,10 @@ that does the job it exists for rather than a small increment on the old one.
   name and chunk counts, and distinguishes "service offline" from "model server
   offline" from "vector store offline".
 - Source cards show the chunk id alongside the file name.
+- `deploy/install.sh` and `deploy/voa-gny-frontend.service` — single-host
+  deployment. Both halves run on the maud-ai box under systemd, so the
+  assistant is reachable at `http://10.10.1.165:3000` with nothing installed on
+  client machines. Re-running the script is also the update path.
 
 ### Changed
 
@@ -49,8 +53,9 @@ that does the job it exists for rather than a small increment on the old one.
 
 - `lib/store.ts`, `lib/search.ts`, `lib/extract.ts`, `lib/ollama.ts` — the local
   index, BM25 ranker, document parsers and Ollama client. All superseded.
-- `mammoth`, `unpdf` and `xlsx` dependencies. Document parsing belongs to
-  `ingest_documents.py`.
+- `mammoth`, `unpdf` and `xlsx` dependencies, and the
+  `serverExternalPackages` entry that kept them out of the bundle. Document
+  parsing belongs to `ingest_documents.py`.
 - The Jetson Nano and Ollama are no longer part of the system.
 
 ### Fixed
