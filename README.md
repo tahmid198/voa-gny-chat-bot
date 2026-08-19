@@ -41,30 +41,130 @@ the frontend cannot talk to Qdrant directly.
    the parsed rows — a 1B model reading a table is where hallucinations happen.
    Otherwise the context goes to vLLM and the answer streams back.
 
-## Setup
+## Running it
 
-### Backend (on the maud-ai host)
+Version 1.0.0 — see [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
-See [backend/README.md](backend/README.md). In short:
+### Prerequisites
+
+These must already be running on the maud-ai host. This app starts neither.
+
+| Service | Port   | Check                                              |
+| ------- | ------ | -------------------------------------------------- |
+| vLLM    | `8000` | `curl -s localhost:8000/v1/models \| python3 -m json.tool` |
+| Qdrant  | `6333` | `curl -s localhost:6333/collections/hr-documents \| python3 -m json.tool` |
+
+The Qdrant collection must already be populated by `ingest_documents.py`.
+
+### 1. Deploy the backend
 
 ```bash
 ssh skunk@10.10.1.165
-cd /opt/maud-ai
-venv/bin/pip install -r backend/requirements.txt
-sudo cp backend/maud-ai.service /etc/systemd/system/
-sudo systemctl enable --now maud-ai
+
+git clone https://github.com/tahmid198/voa-gny-chat-bot /tmp/voa-gny-chat-bot
+sudo cp -r /tmp/voa-gny-chat-bot/backend/maud_service /opt/maud-ai/
+sudo chown -R skunk:skunk /opt/maud-ai/maud_service
 ```
 
-### Frontend
+> Until 1.0.0 is merged, add `-b claude/maud-ai-rag-chat-g6xn1t` to the clone —
+> `backend/` does not exist on `main` yet.
+
+To update an existing deployment, `git pull` in `/tmp/voa-gny-chat-bot` and
+repeat the two `cp`/`chown` lines, then `sudo systemctl restart maud-ai`.
+
+Before installing, confirm the collection's payload keys are what retrieval
+expects. A mismatch yields empty context with no error, which reads as the model
+refusing to answer rather than a configuration problem:
+
+```bash
+cd /opt/maud-ai
+venv/bin/python -c "
+from qdrant_client import QdrantClient
+c = QdrantClient(host='localhost', port=6333)
+pts, _ = c.scroll(collection_name='hr-documents', limit=1, with_payload=True)
+print(pts[0].payload.keys())
+"
+```
+
+Must include `file`, `chunkID` and `text`. Then install the web layer —
+`sentence-transformers` and `qdrant-client` are already in the venv:
+
+```bash
+venv/bin/pip install fastapi 'uvicorn[standard]' httpx
+```
+
+### 2. Check it starts
+
+Run it in the foreground first. The embedding model loads at startup, so expect
+10–20 seconds before `Application startup complete`:
+
+```bash
+cd /opt/maud-ai
+venv/bin/uvicorn maud_service.main:app --host 0.0.0.0 --port 8100
+```
+
+From another shell:
+
+```bash
+curl -s localhost:8100/health | python3 -m json.tool
+
+curl -sN -X POST localhost:8100/chat -H 'Content-Type: application/json' \
+  -d '{"question":"How much PTO do I get after 10 years?"}'
+```
+
+`/health` should report `"online": true` for both `llm` and `vectorStore`, and a
+non-zero chunk count. The PTO question answers from the parsed table rather than
+the model, so it returns immediately.
+
+### 3. Install as a service
+
+```bash
+sudo cp /tmp/voa-gny-chat-bot/backend/maud-ai.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now maud-ai
+systemctl status maud-ai
+```
+
+Logs: `journalctl -u maud-ai -f`
+
+### 4. Open the port
+
+Either expose it to the LAN:
+
+```bash
+sudo ufw allow from 10.10.1.0/24 to any port 8100 proto tcp
+```
+
+…or leave it closed and tunnel from wherever the frontend runs:
+
+```bash
+ssh -N -L 8100:localhost:8100 skunk@10.10.1.165
+```
+
+### 5. Run the frontend
 
 ```bash
 npm install
-cp .env.example .env.local    # point MAUD_API_URL at the maud-ai host
+cp .env.example .env.local     # set MAUD_API_URL
 npm run dev
 ```
 
-Open http://localhost:3000. The status dot in the top right turns green once
-vLLM, Qdrant and the maud-ai service are all reachable.
+Set `MAUD_API_URL=http://10.10.1.165:8100`, or `http://localhost:8100` if you
+tunneled. Open http://localhost:3000 — the status dot turns green once vLLM,
+Qdrant and the maud-ai service are all reachable.
+
+For production: `npm run build && npm start`.
+
+### Troubleshooting
+
+| Symptom | Cause |
+| ------- | ----- |
+| Grey dot, "Service offline" | `maud-ai` isn't running, or port 8100 is unreachable |
+| "Model server offline" | vLLM is down; the service itself is fine |
+| "Vector store offline" | Qdrant is down or the collection name is wrong |
+| "Model not loaded" | vLLM is serving a different model than `MODEL_NAME` |
+| Answers say information is unavailable | Retrieval found nothing — check the payload keys above, and that `EMBEDDING_MODEL` matches what built the collection |
+| 400 about context length | Budgets exceed vLLM's `--max-model-len`; see [backend/README.md](backend/README.md) |
 
 ## Configuration
 
