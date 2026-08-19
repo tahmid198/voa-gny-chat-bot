@@ -73,7 +73,7 @@ Re-running it pulls the latest code, rebuilds and restarts — that is the updat
 path too. To install a branch other than `main`:
 
 ```bash
-BRANCH=claude/maud-ai-rag-chat-g6xn1t ./deploy/install.sh
+BRANCH=my-feature-branch ./deploy/install.sh
 ```
 
 `APP_DIR`, `MAUD_DIR`, `SERVICE_USER`, `FRONTEND_PORT` and `BACKEND_PORT` can be
@@ -124,9 +124,6 @@ git clone https://github.com/tahmid198/voa-gny-chat-bot /tmp/voa-gny-chat-bot
 sudo cp -r /tmp/voa-gny-chat-bot/backend/maud_service /opt/maud-ai/
 sudo chown -R skunk:skunk /opt/maud-ai/maud_service
 ```
-
-> Until 1.0.0 is merged, add `-b claude/maud-ai-rag-chat-g6xn1t` to the clone —
-> `backend/` does not exist on `main` yet.
 
 To update an existing deployment, `git pull` in `/tmp/voa-gny-chat-bot` and
 repeat the two `cp`/`chown` lines, then `sudo systemctl restart maud-ai`.
