@@ -34,7 +34,10 @@ release removes that.
 ### Changed
 
 - Re-running `deploy/install.sh` is the update path: it pulls, rebuilds and
-  restarts both services. `BRANCH`, `APP_DIR`, `MAUD_DIR`, `SERVICE_USER`,
+  restarts both services. When the pull changes the installer itself, it
+  re-executes the pulled copy rather than continuing through a file that
+  changed underneath it — bash reads scripts by byte offset, so carrying on
+  can resume at the wrong place. `BRANCH`, `APP_DIR`, `MAUD_DIR`, `SERVICE_USER`,
   `FRONTEND_PORT` and `BACKEND_PORT` override the defaults.
 - The service reports its own package version at `/health` rather than a
   hardcoded string.

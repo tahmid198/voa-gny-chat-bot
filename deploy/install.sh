@@ -74,6 +74,19 @@ else
 fi
 info "at $(git -C "$APP_DIR" rev-parse --short HEAD) on $BRANCH"
 
+# The pull may have replaced this very script — either because it was started
+# from a bootstrap clone elsewhere, or because install.sh itself changed. Hand
+# over to the pulled copy rather than continuing to execute the old one: bash
+# reads a script by byte offset, so carrying on through a file that changed
+# underneath us can resume at the wrong place.
+deployed="$APP_DIR/deploy/install.sh"
+if [ "${MAUD_INSTALL_RELAUNCHED:-0}" != "1" ] &&
+   [ -f "$deployed" ] &&
+   ! cmp -s "$0" "$deployed"; then
+  info "handing over to the pulled installer"
+  MAUD_INSTALL_RELAUNCHED=1 exec bash "$deployed"
+fi
+
 # ---------------------------------------------------------------------------
 step "Installing the backend into $MAUD_DIR"
 # ---------------------------------------------------------------------------

@@ -79,6 +79,10 @@ cd /opt/maud-ai/voa-gny-chat-bot
 ./deploy/install.sh
 ```
 
+The script hands over to the pulled copy of itself when it finds that it has
+changed, so an update to the installer applies on the same run rather than the
+next one.
+
 To install a branch other than `main`:
 
 ```bash
