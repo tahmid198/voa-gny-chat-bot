@@ -61,10 +61,13 @@ that does the job it exists for rather than a small increment on the old one.
   deployed vLLM's `--max-model-len 2048`, which would have returned a 400 on the
   first question carrying real context. Budgets now fit, and the cap is enforced
   both when retrieval selects chunks and when the prompt is assembled.
-- **Misleading source snippets.** Snippet windows were ranked by total
+- **Misleading source snippets.** Two separate faults made citations look
+  unrelated to the answer they supported. Windows were ranked by total
   query-term count, so for "bereavement leave" a paragraph repeating "leave"
-  outranked the one defining bereavement leave — the citation looked unrelated
-  to the answer. Windows are now ranked by distinct terms matched first.
+  outranked the one defining bereavement leave; and the winning window was
+  chosen at 40 words but displayed at 240 characters, so the term that won it
+  could be truncated away. Excerpts are now scored exactly as displayed, ranked
+  by distinct terms matched before total occurrences.
 
 ### Known limitations
 

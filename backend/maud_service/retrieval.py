@@ -153,37 +153,62 @@ def _query_terms(question: str) -> set[str]:
     }
 
 
-def make_snippet(text: str, terms: set[str], window: int = 40, limit: int = 240) -> str:
-    """Pull the most relevant region of the chunk so the source card shows the
-    part that actually matched.
+def make_snippet(text: str, terms: set[str], limit: int = 240) -> str:
+    """Pull the most relevant excerpt of the chunk for the source card.
 
-    Windows are ranked by how many *distinct* query terms they contain before
-    total occurrences. Raw frequency alone picks the wrong passage: asked about
-    "bereavement leave", a paragraph saying "leave" four times outscores the one
-    that actually defines bereavement leave, because the distinctive term is
-    rare and the common one repeats.
+    Candidate excerpts are scored as they will actually be displayed — trimmed
+    to `limit` characters — rather than scoring a fixed word window and
+    truncating afterwards. Those two disagree: a window can rank first on a term
+    that then falls outside the visible characters, leaving a citation whose
+    snippet never mentions what was asked.
+
+    Ranking is by distinct query terms matched, then total occurrences. Distinct
+    first because raw frequency picks the wrong passage — asked about
+    "bereavement leave", a paragraph repeating "leave" beats the one that
+    actually defines bereavement leave.
     """
-    words = text.split()
-    if len(words) <= window + 5:
-        return text[:limit].strip()
+    text = text.strip()
+    if len(text) <= limit:
+        return text
 
-    # Normalize once; the scoring loop revisits each word up to window/step times.
+    words = text.split()
+
+    # Normalize once; scoring revisits each word across overlapping candidates.
     normalized = [
         match[0] if (match := _WORD_RE.findall(word.lower())) else "" for word in words
     ]
 
-    best_start = 0
+    # Character offset of each word, so the word count that fits in `limit` can
+    # be found without rebuilding strings.
+    offsets = [0]
+    for word in words:
+        offsets.append(offsets[-1] + len(word) + 1)
+
+    def words_that_fit(start: int) -> int:
+        budget = offsets[start] + limit
+        end = start
+        while end < len(words) and offsets[end + 1] <= budget:
+            end += 1
+        return max(end, start + 1)
+
+    best_start, best_end = 0, words_that_fit(0)
     best_score = (-1, -1)
-    for start in range(0, len(normalized) - window + 1, 5):
-        matched = [w for w in normalized[start : start + window] if w in terms]
+
+    for start in range(0, len(words), 3):
+        end = words_that_fit(start)
+        matched = [w for w in normalized[start:end] if w in terms]
         score = (len(set(matched)), len(matched))
+
         if score > best_score:
             best_score = score
-            best_start = start
+            best_start, best_end = start, end
 
-    snippet = " ".join(words[best_start : best_start + window])[:limit].strip()
+        if end >= len(words):
+            break
+
+    snippet = " ".join(words[best_start:best_end])
     prefix = "… " if best_start > 0 else ""
-    suffix = " …" if best_start + window < len(words) else ""
+    suffix = " …" if best_end < len(words) else ""
     return f"{prefix}{snippet}{suffix}"
 
 

@@ -331,6 +331,35 @@ BEREAVEMENT_CHUNK = (
 )
 
 
+HANDBOOK_CHUNK_52 = (
+    "D. Military Leave Employees called to military training will be granted "
+    "leave for the duration of the training and until the end of the training, "
+    "allowing reasonable travel time. Employees on longer military leave will be "
+    "granted the benefits and rights provided for under federal and state law, "
+    "including USERRA, as these may change from time to time. "
+    "E. Bereavement Leave Regular full-time and regular part-time staff may be "
+    "granted a leave of absence with pay of up to three (3) workdays in the event "
+    "of the death of a member of the employee's immediate family. Immediate family "
+    "is defined as spouse or domestic partner, parent, grandparent, legal guardian, "
+    "mother-in-law, father-in-law, sibling, or child (including step-child). "
+    "In the event an employee requires additional days off due to religious "
+    "obligations at the time of death, the employee may request to use other paid "
+    "accrued leave or unpaid leave. F. Jury Duty and Related Court Leave Leave to "
+    "serve on a jury is granted."
+)
+
+
+def test_snippet_shows_the_match_inside_the_visible_characters():
+    """Regression: the excerpt was chosen as a 40-word window and only then
+    trimmed to 240 chars, so the term that won the window could fall outside
+    what the source card displays — this chunk rendered as military-leave prose
+    ending in a truncated "E. Bereaveme"."""
+    terms = retrieval._query_terms("What is the policy on bereavement leave?")
+    snippet = retrieval.make_snippet(HANDBOOK_CHUNK_52, terms)
+
+    assert "Bereavement Leave" in snippet
+
+
 def test_snippet_prefers_the_rare_term_over_a_repeated_common_one():
     """The tail of this chunk says "leave" far more often than the passage that
     actually defines bereavement leave. Ranking windows by raw term count picks
