@@ -14,7 +14,7 @@ release removes that.
 
 - `deploy/install.sh` — installs and starts the whole stack on a host that
   already runs vLLM and Qdrant. It checks both are responding, installs the
-  backend's Python dependencies, builds the frontend into `/opt/maud-ai/web`,
+  backend's Python dependencies, builds the frontend into `/opt/maud-ai/voa-gny-chat-bot`,
   installs both systemd units, and waits for each to answer before printing the
   URL. Run it as a normal user; it calls `sudo` where it needs to.
 - `deploy/voa-gny-frontend.service` — runs the Next.js production server on
@@ -25,7 +25,7 @@ release removes that.
   Ubuntu 24.04's 18.19 is left alone.
 - Everything is installed under `/opt/maud-ai`, next to the existing venv,
   `documents/` and `rag_chat.py`. `maud_service/` is a symlink into
-  `/opt/maud-ai/web/backend/`, so `git pull` updates the backend and there is
+  `/opt/maud-ai/voa-gny-chat-bot/backend/`, so `git pull` updates the backend and there is
   one copy of the code rather than two.
 
 ### Changed

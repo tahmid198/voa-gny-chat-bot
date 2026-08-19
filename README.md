@@ -63,14 +63,23 @@ Run it as your normal user, not root — it calls `sudo` where it needs to. It:
 1. checks vLLM and Qdrant are responding, warning rather than failing if not
 2. installs the backend into `/opt/maud-ai` and its Python dependencies
 3. installs Node.js 20 if the system Node is older than 18.18
-4. builds the frontend in `/opt/maud-ai/web`, pointed at `localhost:8100`
+4. builds the frontend in `/opt/maud-ai/voa-gny-chat-bot`, pointed at `localhost:8100`
 5. installs and starts both systemd services
 6. waits for each to answer, then prints the URL
 
 Then open **http://10.10.1.165:3000** from any machine on the network.
 
-Re-running it pulls the latest code, rebuilds and restarts — that is the update
-path too. To install a branch other than `main`:
+The clone you started from is only a bootstrap — the deployed copy lives at
+`/opt/maud-ai/voa-gny-chat-bot`, so you can delete the one in your home
+directory afterwards. Updates run from the deployed copy, which pulls and
+restarts itself:
+
+```bash
+cd /opt/maud-ai/voa-gny-chat-bot
+./deploy/install.sh
+```
+
+To install a branch other than `main`:
 
 ```bash
 BRANCH=my-feature-branch ./deploy/install.sh
@@ -95,12 +104,13 @@ Everything lives under `/opt/maud-ai`, alongside the existing venv and scripts:
 ├── documents/             existing — source files for ingest_documents.py
 ├── rag_chat.py            existing — the interactive CLI, unchanged
 ├── ingest_documents.py    existing — ingestion, unchanged
-├── maud_service/  →  web/backend/maud_service   (symlink)
-└── web/                   this repo, built
+├── maud_service/  →  voa-gny-chat-bot/backend/maud_service   (symlink)
+└── voa-gny-chat-bot/      this repo, built
 ```
 
 `maud_service/` is a link into the checkout rather than a copy, so `git pull`
-in `web/` updates the backend too and there is only one copy of the code.
+in `voa-gny-chat-bot/` updates the backend too, and there is one copy of the
+code on disk rather than two that can drift.
 
 ### The CLI and the service
 

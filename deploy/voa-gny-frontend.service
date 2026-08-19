@@ -15,13 +15,13 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=skunk
-WorkingDirectory=/opt/maud-ai/web
+WorkingDirectory=/opt/maud-ai/voa-gny-chat-bot
 Environment="NODE_ENV=production"
 # Both services run on this host, so the backend is reachable on loopback.
 Environment="MAUD_API_URL=http://localhost:8100"
 # Invoke next directly rather than through npm: systemd then supervises the
 # server process itself instead of an npm wrapper that forwards signals.
-ExecStart=/usr/bin/node /opt/maud-ai/web/node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000
+ExecStart=/usr/bin/node /opt/maud-ai/voa-gny-chat-bot/node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000
 Restart=on-failure
 RestartSec=5
 

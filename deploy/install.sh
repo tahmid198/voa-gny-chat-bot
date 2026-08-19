@@ -2,9 +2,14 @@
 #
 # Install both halves of the VOA-GNY HR assistant on this host.
 #
-#   /opt/maud-ai/                 existing venv, rag_chat.py, documents/
-#   /opt/maud-ai/web/             this repo, built  -> voa-gny-frontend :3000
-#   /opt/maud-ai/maud_service/    link into web/    -> maud-ai          :8100
+#   /opt/maud-ai/                    existing venv, rag_chat.py, documents/
+#   /opt/maud-ai/voa-gny-chat-bot/   this repo, built
+#   /opt/maud-ai/maud_service/       symlink into the checkout
+#
+# and starts two services:
+#
+#   maud-ai            :8100   FastAPI — embeddings, Qdrant, vLLM
+#   voa-gny-frontend   :3000   Next.js production server
 #
 # Run as a normal user with sudo rights (not as root):
 #
@@ -22,7 +27,7 @@ BRANCH="${BRANCH:-main}"
 MAUD_DIR="${MAUD_DIR:-/opt/maud-ai}"
 # Kept under MAUD_DIR so everything lives in one place alongside rag_chat.py,
 # ingest_documents.py and the venv.
-APP_DIR="${APP_DIR:-$MAUD_DIR/web}"
+APP_DIR="${APP_DIR:-$MAUD_DIR/voa-gny-chat-bot}"
 SERVICE_USER="${SERVICE_USER:-$(id -un)}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 BACKEND_PORT="${BACKEND_PORT:-8100}"
@@ -149,10 +154,10 @@ step "Installing systemd services"
 install_unit() {
   local source="$1" name="$2"
   # Match the unit's User and paths to how this script was invoked.
-  # The longer path first: /opt/maud-ai/web must not be rewritten by the
+  # The longer path first: /opt/maud-ai/voa-gny-chat-bot must not be rewritten by the
   # /opt/maud-ai rule before it has been matched.
   sudo sed -e "s|^User=.*|User=$SERVICE_USER|" \
-           -e "s|/opt/maud-ai/web|$APP_DIR|g" \
+           -e "s|/opt/maud-ai/voa-gny-chat-bot|$APP_DIR|g" \
            -e "s|/opt/maud-ai|$MAUD_DIR|g" \
            "$source" | sudo tee "/etc/systemd/system/$name" >/dev/null
 }
