@@ -22,23 +22,44 @@ unavailable in the supplied HR documents.
 
 
 def build_context(hits) -> str:
-    """Number the chunks so the model's [n] citations line up with the UI."""
-    return "\n\n---\n\n".join(
-        f"[{position}] SOURCE: {hit.file} (chunk {hit.chunk})\n{hit.text}"
-        for position, hit in enumerate(hits, start=1)
-    )
+    """Number the chunks so the model's [n] citations line up with the UI.
+
+    Retrieval already keeps the selected chunks inside MAX_CONTEXT_CHARS, but
+    the cap is re-applied here so the prompt cannot overflow the model window
+    if it is ever called with an unbounded set of hits.
+    """
+    blocks: list[str] = []
+    remaining = config.MAX_CONTEXT_CHARS
+
+    for position, hit in enumerate(hits, start=1):
+        header = f"[{position}] SOURCE: {hit.file} (chunk {hit.chunk})\n"
+        if len(header) >= remaining:
+            break
+
+        text = hit.text[: remaining - len(header)]
+        blocks.append(header + text)
+        remaining -= len(header) + len(text)
+
+        if remaining <= 0:
+            break
+
+    return "\n\n---\n\n".join(blocks)
 
 
 def build_messages(question: str, hits, history: list[dict]) -> list[dict]:
     messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     # Keep the last few turns so follow-ups read naturally, but not so many
-    # that a 1B model loses the context block.
-    for turn in history[-6:]:
+    # that they crowd out the context block. Long prior answers are truncated
+    # rather than dropped, so the thread still reads as a conversation.
+    for turn in history[-(config.MAX_HISTORY_TURNS * 2) :]:
         role = turn.get("role")
         content = (turn.get("content") or "").strip()
-        if role in ("user", "assistant") and content:
-            messages.append({"role": role, "content": content})
+        if role not in ("user", "assistant") or not content:
+            continue
+        if len(content) > config.MAX_HISTORY_CHARS:
+            content = content[: config.MAX_HISTORY_CHARS].rstrip() + " …"
+        messages.append({"role": role, "content": content})
 
     messages.append(
         {
@@ -114,6 +135,12 @@ def describe_error(error: Exception) -> str:
         return (
             f"Can't reach vLLM at {config.VLLM_BASE_URL}. Check that the vLLM "
             f"service is running on the maud-ai host."
+        )
+    if "maximum context length" in message.lower() or "context length" in message.lower():
+        return (
+            "The question plus its context exceeded the model's window. Lower "
+            "MAX_CONTEXT_CHARS / MAX_OUTPUT_TOKENS for the maud-ai service, or "
+            "restart vLLM with a larger --max-model-len."
         )
     if "not found" in message.lower() or "does not exist" in message.lower():
         return (

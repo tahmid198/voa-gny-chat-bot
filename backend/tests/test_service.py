@@ -247,3 +247,68 @@ def test_chat_surfaces_model_failures_as_stream_errors(client, monkeypatch, pros
 def test_chat_rejects_an_empty_question(client):
     events = ndjson(client.post("/chat", json={"question": "   "}).text)
     assert events == [{"type": "error", "message": "A question is required."}]
+
+
+# --- Context window budget ------------------------------------------------
+
+
+def test_history_is_trimmed_to_the_configured_turns():
+    history = [
+        {"role": "user", "content": f"q{n}"} if n % 2 == 0 else
+        {"role": "assistant", "content": f"a{n}"}
+        for n in range(10)
+    ]
+    hits = [retrieval.Hit(file="f.pdf", chunk="1", text="body", score=1.0)]
+
+    messages = llm.build_messages("now what?", hits, history)
+    carried = [m["content"] for m in messages[1:-1]]
+
+    # system + (2 turns = 4 messages) + the question
+    assert len(messages) == 6
+    assert carried == ["q6", "a7", "q8", "a9"]
+
+
+def test_long_prior_answers_are_truncated_not_dropped():
+    history = [
+        {"role": "user", "content": "explain the leave policy"},
+        {"role": "assistant", "content": "x" * 5000},
+    ]
+    hits = [retrieval.Hit(file="f.pdf", chunk="1", text="body", score=1.0)]
+
+    messages = llm.build_messages("and for part-timers?", hits, history)
+    prior_answer = messages[2]["content"]
+
+    assert len(prior_answer) <= llm.config.MAX_HISTORY_CHARS + 2
+    assert prior_answer.endswith("…")
+
+
+def test_worst_case_prompt_fits_a_2048_token_window():
+    """vLLM is serving --max-model-len 2048; the prompt plus the reserved
+    answer has to fit inside it."""
+    hits = [
+        retrieval.Hit(file="handbook.pdf", chunk=str(n), text="y" * 4000, score=1.0)
+        for n in range(5)
+    ]
+    history = [
+        {"role": "user", "content": "z" * 5000},
+        {"role": "assistant", "content": "z" * 5000},
+    ] * 5
+
+    messages = llm.build_messages("q" * 300, hits, history)
+    chars = sum(len(m["content"]) for m in messages)
+
+    # 3 chars/token is pessimistic for English; numeric tables tokenize worst.
+    estimated_prompt_tokens = chars / 3
+    assert estimated_prompt_tokens + llm.config.MAX_OUTPUT_TOKENS < 2048, (
+        f"{chars} prompt chars (~{estimated_prompt_tokens:.0f} tokens) plus "
+        f"{llm.config.MAX_OUTPUT_TOKENS} output tokens overflows the window"
+    )
+
+
+def test_context_overflow_gets_an_actionable_message():
+    error = RuntimeError(
+        "vLLM responded 400: This model's maximum context length is 2048 tokens"
+    )
+    message = llm.describe_error(error)
+
+    assert "MAX_CONTEXT_CHARS" in message and "max-model-len" in message

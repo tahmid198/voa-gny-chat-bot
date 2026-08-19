@@ -70,6 +70,47 @@ list; the defaults match the current box:
 collection. A mismatch produces vectors in the wrong space, and search returns
 plausible-looking but wrong chunks rather than an error.
 
+### The context window
+
+The generation budgets are sized for whatever `--max-model-len` vLLM was
+started with. Check it:
+
+```bash
+curl -s localhost:8000/v1/models | python3 -m json.tool | grep max_model_len
+```
+
+Defaults here assume **2048**, and split it roughly as:
+
+| Part            | Budget                            |
+| --------------- | --------------------------------- |
+| System prompt   | ~130 tokens                       |
+| Retrieved chunks| `MAX_CONTEXT_CHARS` 2600 (~870)   |
+| History         | 2 turns × 400 chars (~270)        |
+| Question        | ~100 tokens                       |
+| Answer          | `MAX_OUTPUT_TOKENS` 256           |
+
+2048 is tight: only two or three chunks fit, so questions whose answer is
+spread across several documents will retrieve the right chunks and then have
+to drop most of them. `gemma-3-1b` supports far more, so the real fix is to
+restart vLLM with a bigger window:
+
+```bash
+vllm serve google/gemma-3-1b-it --max-model-len 8192
+```
+
+then raise the budgets to match:
+
+```bash
+MAX_CONTEXT_CHARS=12000
+MAX_OUTPUT_TOKENS=512
+MAX_HISTORY_TURNS=3
+```
+
+The budgets are enforced in two places — `retrieval.search` caps what it
+selects, and `llm.build_context` re-caps at prompt-build time — so raising
+`MAX_CONTEXT_CHARS` beyond what the window holds produces a clear error from
+vLLM rather than a truncated answer.
+
 ## Endpoints
 
 | Route                | Method | Purpose                                         |
