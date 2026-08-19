@@ -312,3 +312,44 @@ def test_context_overflow_gets_an_actionable_message():
     message = llm.describe_error(error)
 
     assert "MAX_CONTEXT_CHARS" in message and "max-model-len" in message
+
+
+# --- Snippet selection ----------------------------------------------------
+
+
+BEREAVEMENT_CHUNK = (
+    "E. Bereavement Leave Regular full-time and regular part-time staff may be "
+    "granted a leave of absence with pay of up to three (3) workdays in the event "
+    "of the death of a member of the employee's immediate family. Immediate family "
+    "is defined as spouse or domestic partner, parent, grandparent, legal guardian, "
+    "mother-in-law, father-in-law, sibling, or child (including step-child). "
+    "In the event an employee requires additional days off due to religious "
+    "obligations at the time of death, the employee may request to use other paid "
+    "accrued leave or unpaid leave. F. Jury Duty and Related Court Leave Leave to "
+    "serve on a jury is granted. Leave for court appearances is also granted, and "
+    "such leave is unpaid leave beyond the statutory leave period."
+)
+
+
+def test_snippet_prefers_the_rare_term_over_a_repeated_common_one():
+    """The tail of this chunk says "leave" far more often than the passage that
+    actually defines bereavement leave. Ranking windows by raw term count picks
+    the tail, which reads as an unrelated citation in the UI."""
+    terms = retrieval._query_terms("What is the policy on bereavement leave?")
+    snippet = retrieval.make_snippet(BEREAVEMENT_CHUNK, terms)
+
+    assert "Bereavement Leave" in snippet
+    assert "Jury Duty" not in snippet
+
+
+def test_snippet_still_follows_the_query_within_a_chunk():
+    terms = retrieval._query_terms("jury duty court appearances")
+    snippet = retrieval.make_snippet(BEREAVEMENT_CHUNK, terms)
+
+    assert "Jury Duty" in snippet
+
+
+def test_short_chunks_are_returned_whole():
+    assert retrieval.make_snippet("A short policy line.", {"policy"}) == (
+        "A short policy line."
+    )

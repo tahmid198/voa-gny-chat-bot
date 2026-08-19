@@ -154,20 +154,29 @@ def _query_terms(question: str) -> set[str]:
 
 
 def make_snippet(text: str, terms: set[str], window: int = 40, limit: int = 240) -> str:
-    """Pull the densest region of the chunk so the source card shows the part
-    that actually matched."""
+    """Pull the most relevant region of the chunk so the source card shows the
+    part that actually matched.
+
+    Windows are ranked by how many *distinct* query terms they contain before
+    total occurrences. Raw frequency alone picks the wrong passage: asked about
+    "bereavement leave", a paragraph saying "leave" four times outscores the one
+    that actually defines bereavement leave, because the distinctive term is
+    rare and the common one repeats.
+    """
     words = text.split()
     if len(words) <= window + 5:
         return text[:limit].strip()
 
+    # Normalize once; the scoring loop revisits each word up to window/step times.
+    normalized = [
+        match[0] if (match := _WORD_RE.findall(word.lower())) else "" for word in words
+    ]
+
     best_start = 0
-    best_score = -1
-    for start in range(0, len(words) - window + 1, 5):
-        score = sum(
-            1
-            for word in words[start : start + window]
-            if _WORD_RE.findall(word.lower()) and _WORD_RE.findall(word.lower())[0] in terms
-        )
+    best_score = (-1, -1)
+    for start in range(0, len(normalized) - window + 1, 5):
+        matched = [w for w in normalized[start : start + window] if w in terms]
+        score = (len(set(matched)), len(matched))
         if score > best_score:
             best_score = score
             best_start = start
