@@ -91,13 +91,17 @@ sudo rm -rf "$link"
 sudo ln -s "$target" "$link"
 info "$link -> $target"
 
+# A plain-language guide to what lives in MAUD_DIR, for whoever opens it next.
+sudo cp "$APP_DIR/deploy/maud-ai-README.md" "$MAUD_DIR/README.md"
+info "$MAUD_DIR/README.md updated"
+
 # The checkout now lives under MAUD_DIR, so anything that scans MAUD_DIR
 # wholesale would try to ingest node_modules. ingest_documents.py should only
 # read MAUD_DIR/documents.
 if [ -f "$MAUD_DIR/ingest_documents.py" ] &&
-   ! grep -qE 'documents' "$MAUD_DIR/ingest_documents.py"; then
-  warn "could not confirm ingest_documents.py only reads $MAUD_DIR/documents."
-  warn "check it before re-ingesting — $APP_DIR contains node_modules."
+   ! grep -qF "$MAUD_DIR/documents" "$MAUD_DIR/ingest_documents.py"; then
+  warn "ingest_documents.py does not name $MAUD_DIR/documents as its source."
+  warn "confirm it before re-ingesting — $APP_DIR contains node_modules."
 fi
 
 # sentence-transformers and qdrant-client are already in the venv; this adds

@@ -27,6 +27,9 @@ release removes that.
   `documents/` and `rag_chat.py`. `maud_service/` is a symlink into
   `/opt/maud-ai/voa-gny-chat-bot/backend/`, so `git pull` updates the backend and there is
   one copy of the code rather than two.
+- `/opt/maud-ai/README.md`, written by the installer — a plain-language guide
+  to that directory: what each file and folder is for, which service needs it,
+  how to re-ingest documents, and what must never be deleted.
 
 ### Changed
 

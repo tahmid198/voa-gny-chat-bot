@@ -112,6 +112,11 @@ Everything lives under `/opt/maud-ai`, alongside the existing venv and scripts:
 in `voa-gny-chat-bot/` updates the backend too, and there is one copy of the
 code on disk rather than two that can drift.
 
+The installer also writes `/opt/maud-ai/README.md` — a plain-language guide to
+that directory for whoever opens it next, covering what each file does, how to
+re-ingest documents, and what must not be deleted. Its source is
+[deploy/maud-ai-README.md](deploy/maud-ai-README.md).
+
 ### The CLI and the service
 
 `rag_chat.py` is untouched and still works for terminal use:
