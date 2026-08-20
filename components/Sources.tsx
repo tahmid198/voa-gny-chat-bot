@@ -60,6 +60,11 @@ export function Sources({ sources }: { sources: Source[] }) {
                 <FileIcon file={source.file} />
                 <span className="break-all text-sm font-medium">{source.file}</span>
               </div>
+              {source.path && source.path !== source.file && (
+                <p className="mt-1 pl-7 text-[12px] text-[#9aa0a6]">
+                  {source.path.slice(0, source.path.lastIndexOf("/"))}
+                </p>
+              )}
               <p className="mt-2 pl-7 text-[13px] leading-6 text-[#5f6368] dark:text-[#9aa0a6]">
                 {source.snippet}
               </p>

@@ -3,6 +3,8 @@
 export interface Source {
   n: number;
   file: string;
+  /** Path relative to the ingestion root, e.g. "OneDrive_2026-08-04/policy.pdf". */
+  path?: string;
   /** Chunk id within the source document, as stored in Qdrant. */
   chunk?: string;
   snippet: string;
@@ -20,6 +22,7 @@ export interface Turn {
 
 export interface IndexedFileInfo {
   file: string;
+  path?: string;
   chunkCount: number;
   charCount: number;
 }

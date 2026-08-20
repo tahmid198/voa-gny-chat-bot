@@ -86,6 +86,9 @@ class Hit:
     text: str
     score: float
     snippet: str = ""
+    #: Path relative to DOCUMENTS_ROOT. Distinguishes same-named files sitting
+    #: in different subfolders, which the bare file name cannot.
+    path: str = ""
 
 
 @dataclass
@@ -151,6 +154,21 @@ def _query_terms(question: str) -> set[str]:
         for word in _WORD_RE.findall(question.lower())
         if len(word) > 1 and word not in _STOPWORDS
     }
+
+
+def relative_path(path: str, file_name: str) -> str:
+    """Stored path, shown relative to the ingestion root.
+
+    ingest_documents.py records `file` as the bare name and `path` as the
+    absolute location, so the path is what actually identifies a document.
+    """
+    if not path:
+        return file_name
+
+    root = config.DOCUMENTS_ROOT
+    if root and path.startswith(root + "/"):
+        return path[len(root) + 1 :]
+    return path
 
 
 def make_snippet(text: str, terms: set[str], limit: int = 240) -> str:
@@ -244,8 +262,11 @@ def search(
             file_name = str(payload.get("file", "Unknown"))
             chunk_id = str(payload.get("chunkID", "?"))
             text = payload.get("text", "") or ""
+            path = relative_path(str(payload.get("path", "")), file_name)
 
-            key = (file_name, chunk_id)
+            # Deduplicate on the path, not the name: two files called
+            # "handbook.pdf" in different folders are different documents.
+            key = (path, chunk_id)
             if key in seen or not text.strip():
                 continue
             seen.add(key)
@@ -256,6 +277,7 @@ def search(
                     chunk=chunk_id,
                     text=text,
                     score=float(getattr(point, "score", 0.0) or 0.0),
+                    path=path,
                 )
             )
 

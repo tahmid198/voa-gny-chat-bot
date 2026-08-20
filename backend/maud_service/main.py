@@ -101,6 +101,7 @@ def _scan_collection() -> dict[str, Any]:
 
     chunk_counts: dict[str, int] = defaultdict(int)
     char_counts: dict[str, int] = defaultdict(int)
+    names: dict[str, str] = {}
     total = 0
     offset = None
 
@@ -116,8 +117,13 @@ def _scan_collection() -> dict[str, Any]:
         for point in points:
             payload = point.payload or {}
             file_name = str(payload.get("file", "Unknown"))
-            chunk_counts[file_name] += 1
-            char_counts[file_name] += len(payload.get("text", "") or "")
+            # Group by path, not name: ingest_documents.py stores `file` as the
+            # bare name, so same-named files in different subfolders would
+            # otherwise collapse into one entry and undercount the total.
+            path = retrieval.relative_path(str(payload.get("path", "")), file_name)
+            names[path] = file_name
+            chunk_counts[path] += 1
+            char_counts[path] += len(payload.get("text", "") or "")
             total += 1
 
         if offset is None:
@@ -125,13 +131,12 @@ def _scan_collection() -> dict[str, Any]:
 
     files = [
         {
-            "file": name,
-            "chunkCount": chunk_counts[name],
-            "charCount": char_counts[name],
-            "sizeBytes": 0,
-            "modifiedAt": "",
+            "file": names[path],
+            "path": path,
+            "chunkCount": chunk_counts[path],
+            "charCount": char_counts[path],
         }
-        for name in sorted(chunk_counts)
+        for path in sorted(chunk_counts)
     ]
 
     return {
@@ -279,6 +284,7 @@ async def chat(request: ChatRequest) -> StreamingResponse:
                     {
                         "n": position,
                         "file": hit.file,
+                        "path": hit.path,
                         "chunk": hit.chunk,
                         "snippet": hit.snippet,
                         "score": round(hit.score, 4),

@@ -31,6 +31,11 @@ QDRANT_HOST = _str("QDRANT_HOST", "localhost")
 QDRANT_PORT = _int("QDRANT_PORT", 6333)
 QDRANT_COLLECTION = _str("QDRANT_COLLECTION", "hr-documents")
 
+# Where ingest_documents.py reads from. Only used to show stored paths relative
+# to it, so a source reads "OneDrive_2026-08-04/policy.pdf" rather than the
+# full absolute path.
+DOCUMENTS_ROOT = _str("DOCUMENTS_ROOT", "/opt/maud-ai/documents").rstrip("/")
+
 # --- Embeddings -----------------------------------------------------------
 EMBEDDING_MODEL = _str("EMBEDDING_MODEL", "BAAI/bge-base-en-v1.5")
 EMBEDDING_DEVICE = _str("EMBEDDING_DEVICE", "cpu")

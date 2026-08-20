@@ -71,6 +71,26 @@ is relying on the assistant.
 When it finishes, click **Refresh document list** in the web page's status
 panel so it picks up the new file count.
 
+### Check the web page matches the folder
+
+The web page does not read `documents/` — it reads the index built from it. If
+a file was added without re-ingesting, the page will not know about it. To
+compare the two:
+
+```bash
+diff <(curl -s localhost:8100/documents |
+         python3 -c "import json,sys
+for f in json.load(sys.stdin)['files']: print(f['path'])" | sort) \
+     <(cd /opt/maud-ai/documents && find . -type f \
+         \( -iname '*.pdf' -o -iname '*.docx' -o -iname '*.xlsx' \) \
+         -printf '%P\n' | sort)
+```
+
+No output means the index matches the folder exactly. Lines starting with `>`
+are files on disk that have not been ingested — run `ingest_documents.py`.
+Lines starting with `<` are indexed documents whose file has since been
+deleted.
+
 ### Ask from the terminal
 
 ```bash

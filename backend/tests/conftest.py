@@ -15,8 +15,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 class FakePoint:
-    def __init__(self, file: str, chunk: str, text: str, score: float):
-        self.payload = {"file": file, "chunkID": chunk, "text": text}
+    def __init__(self, file: str, chunk: str, text: str, score: float, path: str = ""):
+        self.payload = {
+            "file": file,
+            "chunkID": chunk,
+            "text": text,
+            # ingest_documents.py records both; `path` is what identifies a
+            # document, since `file` is only the basename.
+            "path": path or f"/opt/maud-ai/documents/{file}",
+        }
         self.score = score
 
     @property

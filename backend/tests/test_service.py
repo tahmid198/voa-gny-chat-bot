@@ -391,3 +391,57 @@ def test_health_reports_the_service_version(client, prose_points):
     body = client.get("/health").json()
 
     assert body["service"]["version"] == __version__
+
+
+# --- Documents in subfolders ---------------------------------------------
+
+
+def test_same_name_in_different_folders_counts_as_two_documents(client):
+    """ingest_documents.py walks subfolders and stores `file` as the bare
+    name, so grouping by name merges distinct documents into one."""
+    from conftest import FakePoint
+
+    FakeQdrantClient.points = [
+        FakePoint("policy.pdf", "0", "Policy A, from the top level.", 0.9),
+        FakePoint(
+            "policy.pdf",
+            "0",
+            "Policy B, a different document that happens to share a name.",
+            0.8,
+            path="/opt/maud-ai/documents/OneDrive_2026-08-04/policy.pdf",
+        ),
+    ]
+
+    body = client.post("/documents/refresh").json()
+
+    assert body["fileCount"] == 2
+    assert sorted(f["path"] for f in body["files"]) == [
+        "OneDrive_2026-08-04/policy.pdf",
+        "policy.pdf",
+    ]
+    # The bare name is still available for display.
+    assert {f["file"] for f in body["files"]} == {"policy.pdf"}
+
+
+def test_retrieval_keeps_both_same_named_documents(client):
+    from conftest import FakePoint
+
+    FakeQdrantClient.points = [
+        FakePoint("policy.pdf", "0", "Dress code is business casual.", 0.9),
+        FakePoint(
+            "policy.pdf",
+            "0",
+            "Dress code on site requires safety footwear.",
+            0.8,
+            path="/opt/maud-ai/documents/OneDrive_2026-08-04/policy.pdf",
+        ),
+    ]
+
+    result = retrieval.search(FakeQdrantClient(), lambda t: [0.1], "dress code")
+
+    # Deduplicating on (name, chunk) would have dropped the second.
+    assert len(result.hits) == 2
+    assert {hit.path for hit in result.hits} == {
+        "policy.pdf",
+        "OneDrive_2026-08-04/policy.pdf",
+    }

@@ -44,6 +44,16 @@ release removes that.
 - README leads with the single-host install; the per-machine frontend setup is
   kept as the alternative.
 
+### Fixed
+
+- **Documents in subfolders could be merged or dropped.**
+  `ingest_documents.py` walks subfolders and stores `file` as the bare name
+  with the full location in `path`, but the service grouped and deduplicated
+  by name. Two documents sharing a name in different folders counted as one in
+  the document total, and retrieval discarded whichever it saw second — so a
+  passage that should have been cited never appeared. Both now key on the
+  path, and source cards show the containing folder when there is one.
+
 ### Removed
 
 - The `serverExternalPackages` entry for `unpdf`, `mammoth` and `xlsx`. Those
